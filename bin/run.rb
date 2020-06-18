@@ -1,5 +1,9 @@
-require 'airbrake-ruby'
+# frozen_string_literal: true
 
+require 'dotenv'
+Dotenv.load('.env.development')
+
+require 'airbrake-ruby'
 Airbrake.configure do |c|
   c.project_id = ENV.fetch('AIRBRAKE_PROJECT_ID')
   c.project_key = ENV.fetch('AIRBRAKE_PROJECT_KEY')
