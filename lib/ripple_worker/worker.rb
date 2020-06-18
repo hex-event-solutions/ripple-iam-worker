@@ -6,12 +6,12 @@ require 'json'
 
 module RippleWorker
   class Worker
-    attr_reader :bunny, :keycloak, :queue
+    attr_reader :bunny, :keycloak, :queue, :exchange
 
     def initialize
       init_bunny
       init_keycloak
-      puts 'Worker initialized'
+      puts "#{queue_name} worker initialized"
     end
 
     def run
@@ -25,7 +25,16 @@ module RippleWorker
 
           if allowed_messages.key? object_type
             if allowed_messages[object_type].include? action
-              process_message(object_type, action, body)
+              begin
+                process_message(object_type, action, body)
+              rescue RippleKeycloak::NotFoundError => e
+                Airbrake.notify(e)
+                pp e
+                republish_and_retry(props[:headers], body)
+              rescue RippleKeycloak::Error => e
+                Airbrake.notify(e)
+                pp e
+              end
             else
               puts 'No action'
             end
@@ -39,6 +48,20 @@ module RippleWorker
     end
 
     private
+
+    def republish_and_retry(headers, body)
+      message_retry_count = headers['retry_count'].to_i || 0
+      retry_count = ENV.fetch('RIPPLE_WORKER_MAX_RETRY', 5)
+      exceeded_retry_count = message_retry_count >= retry_count
+      if exceeded_retry_count
+        Airbrake.notify(ExceededMaxRetryCountError.new([headers, body]))
+        puts 'Exceeded retry count, not republishing'
+      else
+        puts 'Republishing message'
+        headers['retry_count'] = (message_retry_count + 1).to_s
+        exchange.publish(body.to_json, headers: headers)
+      end
+    end
 
     def channel
       @channel ||= @bunny.create_channel
@@ -60,12 +83,7 @@ module RippleWorker
 
     def process_or_notify(klass, action, body)
       if klass.respond_to? action
-        begin
-          klass.public_send(action, **body)
-        rescue RippleKeycloak::Error => e
-          Airbrake.notify(e)
-          puts e
-        end
+        klass.public_send(action, **body)
       else
         puts 'This operation is not defined for this object type'
       end
@@ -94,14 +112,44 @@ module RippleWorker
       )
       @bunny.start
       init_queue
+      init_exchange
+      bind_queue
       channel.prefetch(1)
     end
 
     def init_queue
       @queue = channel.queue(
-        ENV.fetch('RABBIT_QUEUE'),
+        queue_name,
         { durable: true, auto_delete: false }
       )
+    end
+
+    def init_exchange
+      @exchange = channel.headers(ENV.fetch('RABBIT_EXCHANGE'), durable: true)
+    end
+
+    def queue_name
+      "#{ENV.fetch('RABBIT_EXCHANGE')}.#{ENV.fetch('RABBIT_QUEUE')}"
+    end
+
+    def bind_queue
+      case ENV.fetch('RABBIT_QUEUE')
+      when 'groups'
+        base_arg = { 'object_type' => 'group' }
+        queue.bind(exchange, arguments: base_arg.merge({ 'action' => 'create' }))
+        queue.bind(exchange, arguments: base_arg.merge({ 'action' => 'add_role' }))
+        queue.bind(exchange, arguments: base_arg.merge({ 'action' => 'remove_role' }))
+      when 'users'
+        base_arg = { 'object_type' => 'user' }
+        queue.bind(exchange, arguments: base_arg.merge({ 'action' => 'create' }))
+        queue.bind(exchange, arguments: base_arg.merge({ 'action' => 'add_to_group' }))
+        queue.bind(exchange, arguments: base_arg.merge({ 'action' => 'remove_from_group' }))
+        queue.bind(exchange, arguments: base_arg.merge({ 'action' => 'add_role' }))
+        queue.bind(exchange, arguments: base_arg.merge({ 'action' => 'remove_role' }))
+      when 'roles'
+        base_arg = { 'object_type' => 'role' }
+        queue.bind(exchange, arguments: base_arg.merge({ 'action' => 'create' }))
+      end
     end
 
     def init_keycloak
