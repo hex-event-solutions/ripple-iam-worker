@@ -1,0 +1,20 @@
+version: '3.7'
+services:
+  groups-worker:
+    build: .
+    env_file:
+      - '.env.development'
+    environment:
+      RABBIT_QUEUE: groups
+  users-worker:
+    build: .
+    env_file:
+      - '.env.development'
+    environment:
+      RABBIT_QUEUE: users
+  roles-worker:
+    build: .
+    env_file:
+      - '.env.development'
+    environment:
+      RABBIT_QUEUE: roles
