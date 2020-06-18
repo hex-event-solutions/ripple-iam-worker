@@ -7,4 +7,6 @@ require_relative 'ripple_worker/user'
 require_relative 'ripple_worker/role'
 
 module RippleWorker
+  class Error < StandardError; end
+  class ExceededMaxRetryCountError < Error; end
 end
