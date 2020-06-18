@@ -32,7 +32,7 @@ GEM
     rbtree3 (0.6.0)
     regexp_parser (1.7.1)
     rexml (3.2.4)
-    ripple_keycloak (0.2.5)
+    ripple_keycloak (0.3.0)
       activesupport (= 6.0.3.1)
       httparty (= 0.18.1)
     rubocop (0.85.1)
@@ -60,7 +60,7 @@ DEPENDENCIES
   airbrake-ruby (~> 4.14.1)
   bunny (~> 2.15.0)
   dotenv (~> 2.7.5)
-  ripple_keycloak (~> 0.2.5)
+  ripple_keycloak (~> 0.3.0)
   rubocop
 
 RUBY VERSION
