@@ -7,6 +7,8 @@ Integrated with RabbitMQ, Airbrake and Keycloak
 ### Group
 
 - Create
+- Add role
+- Remove role
 
 ### User
 
@@ -15,3 +17,11 @@ Integrated with RabbitMQ, Airbrake and Keycloak
 - Remove from group
 - Add role
 - Remove role
+
+### Role
+
+- Create
+
+# Running
+
+Locally: bundle exec ruby bin/run.rb
